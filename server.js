@@ -8,7 +8,7 @@ app.use(express.json());
 
 const client = new Client({
   accessToken: process.env.SQUARE_TOKEN,
-  environment: Environment.Production,
+  environment: Environment.Sandbox,
 });
 
 // ── Health check ──────────────────────────────────────────────────────────────
