@@ -123,26 +123,24 @@ app.get("/verify", async (req, res) => {
 // ── Get Catalog with Images ───────────────────────────────────────────────────
 app.get("/catalog", async (req, res) => {
   try {
-    // Fetch items and images separately to get full image URLs
-    const [itemsResult, imagesResult] = await Promise.all([
-      client.catalogApi.listCatalog(undefined, "ITEM"),
-      client.catalogApi.listCatalog(undefined, "IMAGE"),
-    ]);
+    // Fetch everything in one call
+    const { result } = await client.catalogApi.listCatalog(undefined, "ITEM,IMAGE");
+    const objects = result.objects || [];
 
-    // Build image map: id -> url
+    // Build image map first: id -> url
     const images = {};
-    for (const obj of imagesResult.result.objects || []) {
+    for (const obj of objects) {
       if (obj.type === "IMAGE" && obj.imageData?.url) {
         images[obj.id] = obj.imageData.url;
       }
     }
 
-    // Build items with image URLs
+    // Match items to their images
     const items = [];
-    for (const obj of itemsResult.result.objects || []) {
+    for (const obj of objects) {
       if (obj.type === "ITEM") {
         const imageIds = obj.itemData?.imageIds || [];
-        const imageUrl = imageIds.length > 0 ? images[imageIds[0]] : null;
+        const imageUrl = imageIds.length > 0 ? (images[imageIds[0]] || null) : null;
         items.push({
           id: obj.id,
           name: obj.itemData?.name,
@@ -157,7 +155,11 @@ app.get("/catalog", async (req, res) => {
       }
     }
 
-    res.json({ items, imageCount: Object.keys(images).length });
+    // Debug info
+    const withImages = items.filter(i => i.imageUrl).length;
+    console.log(`Catalog: ${items.length} items, ${withImages} with images, ${Object.keys(images).length} total images`);
+
+    res.json({ items, imageCount: Object.keys(images).length, itemCount: items.length, withImages });
   } catch (err) {
     console.error("Catalog error:", err);
     res.status(500).json({ error: err.message });
