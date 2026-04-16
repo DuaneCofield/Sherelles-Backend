@@ -164,5 +164,21 @@ app.get("/catalog", async (req, res) => {
   }
 });
 
+
+// ── Debug - see raw Square image data ────────────────────────────────────────
+app.get("/debug-images", async (req, res) => {
+  try {
+    const { result } = await client.catalogApi.listCatalog(undefined, "IMAGE");
+    const raw = (result.objects || []).slice(0, 3).map(obj => ({
+      id: obj.id,
+      type: obj.type,
+      imageData: obj.imageData,
+    }));
+    res.json({ count: result.objects?.length || 0, sample: raw });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => console.log(`Sherelle's API running on port ${PORT}`));
