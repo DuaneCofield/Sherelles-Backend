@@ -119,5 +119,44 @@ app.get("/verify", async (req, res) => {
   }
 });
 
+
+// ── Get Catalog with Images ───────────────────────────────────────────────────
+app.get("/catalog", async (req, res) => {
+  try {
+    const { result } = await client.catalogApi.listCatalog(undefined, "ITEM,IMAGE");
+    const images = {};
+    const items = [];
+
+    for (const obj of result.objects || []) {
+      if (obj.type === "IMAGE") {
+        images[obj.id] = obj.imageData?.url;
+      }
+    }
+
+    for (const obj of result.objects || []) {
+      if (obj.type === "ITEM") {
+        const imageId = obj.itemData?.imageIds?.[0];
+        items.push({
+          id: obj.id,
+          name: obj.itemData?.name,
+          description: obj.itemData?.description,
+          imageUrl: imageId ? images[imageId] : null,
+          variations: (obj.itemData?.variations || []).map(v => ({
+            id: v.id,
+            name: v.itemVariationData?.name,
+            price: Number(v.itemVariationData?.priceMoney?.amount || 0) / 100,
+          })),
+          categories: obj.itemData?.categoryId,
+        });
+      }
+    }
+
+    res.json({ items });
+  } catch (err) {
+    console.error("Catalog error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => console.log(`Sherelle's API running on port ${PORT}`));
