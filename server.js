@@ -123,35 +123,41 @@ app.get("/verify", async (req, res) => {
 // ── Get Catalog with Images ───────────────────────────────────────────────────
 app.get("/catalog", async (req, res) => {
   try {
-    const { result } = await client.catalogApi.listCatalog(undefined, "ITEM,IMAGE");
-    const images = {};
-    const items = [];
+    // Fetch items and images separately to get full image URLs
+    const [itemsResult, imagesResult] = await Promise.all([
+      client.catalogApi.listCatalog(undefined, "ITEM"),
+      client.catalogApi.listCatalog(undefined, "IMAGE"),
+    ]);
 
-    for (const obj of result.objects || []) {
-      if (obj.type === "IMAGE") {
-        images[obj.id] = obj.imageData?.url;
+    // Build image map: id -> url
+    const images = {};
+    for (const obj of imagesResult.result.objects || []) {
+      if (obj.type === "IMAGE" && obj.imageData?.url) {
+        images[obj.id] = obj.imageData.url;
       }
     }
 
-    for (const obj of result.objects || []) {
+    // Build items with image URLs
+    const items = [];
+    for (const obj of itemsResult.result.objects || []) {
       if (obj.type === "ITEM") {
-        const imageId = obj.itemData?.imageIds?.[0];
+        const imageIds = obj.itemData?.imageIds || [];
+        const imageUrl = imageIds.length > 0 ? images[imageIds[0]] : null;
         items.push({
           id: obj.id,
           name: obj.itemData?.name,
           description: obj.itemData?.description,
-          imageUrl: imageId ? images[imageId] : null,
+          imageUrl,
           variations: (obj.itemData?.variations || []).map(v => ({
             id: v.id,
             name: v.itemVariationData?.name,
             price: Number(v.itemVariationData?.priceMoney?.amount || 0) / 100,
           })),
-          categories: obj.itemData?.categoryId,
         });
       }
     }
 
-    res.json({ items });
+    res.json({ items, imageCount: Object.keys(images).length });
   } catch (err) {
     console.error("Catalog error:", err);
     res.status(500).json({ error: err.message });
