@@ -3,13 +3,25 @@ const cors = require("cors");
 const { Client, Environment } = require("square");
 
 const app = express();
-app.use(cors());
+
+// Allow requests from Vercel app
+app.use(cors({
+  origin: ["https://sherelles-app.vercel.app", "https://sherelles-appv2.vercel.app", /\.vercel\.app$/, "http://localhost:3000"],
+  methods: ["GET", "POST"],
+  allowedHeaders: ["Content-Type"],
+}));
+
 app.use(express.json());
 
 const client = new Client({
   accessToken: process.env.SQUARE_TOKEN,
   environment: Environment.Production,
 });
+
+// ── Image cache (refresh every 10 min) ───────────────────────────────────────
+let catalogCache = null;
+let cacheTime = 0;
+const CACHE_TTL = 10 * 60 * 1000;
 
 // ── Health check ──────────────────────────────────────────────────────────────
 app.get("/", (req, res) => {
@@ -123,6 +135,11 @@ app.get("/verify", async (req, res) => {
 // ── Get Catalog with Images ───────────────────────────────────────────────────
 app.get("/catalog", async (req, res) => {
   try {
+    // Return cached version if fresh
+    if (catalogCache && Date.now() - cacheTime < CACHE_TTL) {
+      return res.json(catalogCache);
+    }
+
     // Fetch everything in one call
     const { result } = await client.catalogApi.listCatalog(undefined, "ITEM,IMAGE");
     const objects = result.objects || [];
@@ -155,11 +172,14 @@ app.get("/catalog", async (req, res) => {
       }
     }
 
-    // Debug info
     const withImages = items.filter(i => i.imageUrl).length;
     console.log(`Catalog: ${items.length} items, ${withImages} with images, ${Object.keys(images).length} total images`);
 
-    res.json({ items, imageCount: Object.keys(images).length, itemCount: items.length, withImages });
+    // Cache the result
+    catalogCache = { items, imageCount: Object.keys(images).length, itemCount: items.length, withImages };
+    cacheTime = Date.now();
+
+    res.json(catalogCache);
   } catch (err) {
     console.error("Catalog error:", err);
     res.status(500).json({ error: err.message });
