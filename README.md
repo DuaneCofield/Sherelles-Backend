@@ -1,8 +1,13 @@
-# Sherelle's Famous Fried Chicken — Online Ordering App
+# Sherelle's Famous Fried Chicken — Payment Backend
 
-Built with React. Integrates with Square POS.
+Secure Square payment processing server.
 
-## Setup
-1. Run `npm install`
-2. Run `npm start` to preview locally
-3. Deploy to Vercel automatically on push to main branch
+## Environment Variables (set in Railway)
+- `SQUARE_TOKEN` — Your Square Access Token
+- `SQUARE_LOCATION` — Your Square Location ID
+
+## Endpoints
+- `GET /` — Health check
+- `GET /verify` — Verify Square connection
+- `POST /create-order` — Create a Square order
+- `POST /process-payment` — Process a card payment

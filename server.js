@@ -182,5 +182,31 @@ app.get("/debug-images", async (req, res) => {
   }
 });
 
+
+// ── Search catalog by name ────────────────────────────────────────────────────
+app.get("/search/:name", async (req, res) => {
+  try {
+    const { result } = await client.catalogApi.listCatalog(undefined, "ITEM,IMAGE");
+    const objects = result.objects || [];
+    const images = {};
+    for (const obj of objects) {
+      if (obj.type === "IMAGE" && obj.imageData?.url) {
+        images[obj.id] = obj.imageData.url;
+      }
+    }
+    const search = req.params.name.toLowerCase();
+    const matches = objects
+      .filter(obj => obj.type === "ITEM" && obj.itemData?.name?.toLowerCase().includes(search))
+      .map(obj => ({
+        name: obj.itemData?.name,
+        imageIds: obj.itemData?.imageIds || [],
+        imageUrl: obj.itemData?.imageIds?.[0] ? images[obj.itemData.imageIds[0]] : null,
+      }));
+    res.json({ matches });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => console.log(`Sherelle's API running on port ${PORT}`));
