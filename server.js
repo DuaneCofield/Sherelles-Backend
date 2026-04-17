@@ -140,21 +140,25 @@ app.get("/catalog", async (req, res) => {
       return res.json(catalogCache);
     }
 
-    // Fetch everything in one call
-    const { result } = await client.catalogApi.listCatalog(undefined, "ITEM,IMAGE");
-    const objects = result.objects || [];
+    // Fetch ITEMS and IMAGES in two separate calls
+    const [itemResult, imageResult] = await Promise.all([
+      client.catalogApi.listCatalog(undefined, "ITEM"),
+      client.catalogApi.listCatalog(undefined, "IMAGE"),
+    ]);
 
-    // Build image map first: id -> url
+    // Build image map: id -> url
     const images = {};
-    for (const obj of objects) {
-      if (obj.type === "IMAGE" && obj.imageData?.url) {
+    for (const obj of (imageResult.result.objects || [])) {
+      if (obj.imageData?.url) {
         images[obj.id] = obj.imageData.url;
       }
     }
 
+    console.log(`Found ${Object.keys(images).length} images in Square`);
+
     // Match items to their images
     const items = [];
-    for (const obj of objects) {
+    for (const obj of (itemResult.result.objects || [])) {
       if (obj.type === "ITEM") {
         const imageIds = obj.itemData?.imageIds || [];
         const imageUrl = imageIds.length > 0 ? (images[imageIds[0]] || null) : null;
@@ -173,9 +177,8 @@ app.get("/catalog", async (req, res) => {
     }
 
     const withImages = items.filter(i => i.imageUrl).length;
-    console.log(`Catalog: ${items.length} items, ${withImages} with images, ${Object.keys(images).length} total images`);
+    console.log(`Catalog: ${items.length} items, ${withImages} with images`);
 
-    // Cache the result
     catalogCache = { items, imageCount: Object.keys(images).length, itemCount: items.length, withImages };
     cacheTime = Date.now();
 
